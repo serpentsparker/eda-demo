@@ -1,5 +1,6 @@
 """EventBridge event publisher for the API service."""
 
+import asyncio
 import functools
 import json
 import logging
@@ -42,7 +43,8 @@ async def publish_job_requested(payload: JobRequest) -> str:
     }
 
     client = _get_events_client(settings.aws_default_region, settings.localstack_endpoint)
-    response = client.put_events(
+    response = await asyncio.to_thread(
+        client.put_events,
         Entries=[
             {
                 "Source": "eda-demo.api",
@@ -50,7 +52,7 @@ async def publish_job_requested(payload: JobRequest) -> str:
                 "Detail": json.dumps(event_detail),
                 "EventBusName": settings.eventbridge_bus_name,
             }
-        ]
+        ],
     )
 
     failed = response.get("FailedEntryCount", 0)
