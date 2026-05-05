@@ -1,10 +1,10 @@
 """Fixtures for API unit tests."""
 
-import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def api_client() -> AsyncClient:
     """Return an async test client for the FastAPI app."""
     from app.main import app
