@@ -23,7 +23,7 @@ def _get_events_client(region: str, endpoint_url: str | None) -> botocore.client
     return boto3.client("events", **kwargs)
 
 
-def publish_job_completed(job_id: str, result: dict) -> None:
+def publish_job_completed(job_id: str, result: dict[str, Any]) -> None:
     """Publish a JobCompleted event to EventBridge.
 
     Args:
@@ -52,6 +52,15 @@ def publish_job_failed(job_id: str, error: str) -> None:
 
 
 def _put_event(detail_type: str, detail: dict[str, Any]) -> None:
+    """Publish a single event entry to EventBridge.
+
+    Args:
+        detail_type: The EventBridge DetailType field.
+        detail: The event detail payload.
+
+    Raises:
+        RuntimeError: If EventBridge rejects the entry.
+    """
     client = _get_events_client(settings.aws_default_region, settings.localstack_endpoint)
     response = client.put_events(
         Entries=[
@@ -69,4 +78,5 @@ def _put_event(detail_type: str, detail: dict[str, Any]) -> None:
 
 
 def _now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(UTC).isoformat()
