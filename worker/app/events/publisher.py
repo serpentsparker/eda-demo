@@ -3,6 +3,7 @@
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 import boto3
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def _get_events_client() -> boto3.client:
     """Return a boto3 EventBridge client, injecting LocalStack endpoint when configured."""
-    kwargs: dict = {
+    kwargs: dict[str, str] = {
         "region_name": settings.aws_default_region,
     }
     if settings.localstack_endpoint:
@@ -49,7 +50,7 @@ def publish_job_failed(job_id: str, error: str) -> None:
     logger.warning("Published JobFailed event job_id=%s error=%s", job_id, error)
 
 
-def _put_event(detail_type: str, detail: dict) -> None:
+def _put_event(detail_type: str, detail: dict[str, Any]) -> None:
     client = _get_events_client()
     response = client.put_events(
         Entries=[

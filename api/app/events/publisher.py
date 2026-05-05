@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 def _get_events_client() -> boto3.client:
     """Return a boto3 EventBridge client, injecting LocalStack endpoint when configured."""
-    kwargs: dict = {
+    kwargs: dict[str, str] = {
         "region_name": settings.aws_default_region,
     }
     if settings.localstack_endpoint:

@@ -1,6 +1,7 @@
 """Celery task definitions for job processing."""
 
 import logging
+from typing import Any
 
 from celery import Task
 
@@ -11,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10)
-def process_job(self: Task, job_id: str, job_type: str, parameters: dict) -> dict:
+def process_job(
+    self: Task, job_id: str, job_type: str, parameters: dict[str, Any]
+) -> dict[str, Any]:
     """Process a job dispatched from the API via EventBridge → SQS.
 
     Args:
@@ -34,7 +37,7 @@ def process_job(self: Task, job_id: str, job_type: str, parameters: dict) -> dic
         raise self.retry(exc=exc) from exc
 
 
-def _dispatch(job_type: str, parameters: dict) -> dict:
+def _dispatch(job_type: str, parameters: dict[str, Any]) -> dict[str, Any]:
     """Route a job to its handler based on job_type.
 
     Args:
@@ -56,6 +59,6 @@ def _dispatch(job_type: str, parameters: dict) -> dict:
     return handler(parameters)
 
 
-def _handle_echo(parameters: dict) -> dict:
+def _handle_echo(parameters: dict[str, Any]) -> dict[str, Any]:
     """Echo handler — returns parameters unchanged (useful for smoke testing)."""
     return {"echo": parameters}
