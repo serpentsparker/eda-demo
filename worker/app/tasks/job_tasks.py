@@ -32,7 +32,7 @@ def process_job(
         logger.info("Completed job job_id=%s", job_id)
         return result
     except Exception as exc:
-        logger.exception("Job failed job_id=%s: %s", job_id, exc)
+        logger.exception("Job failed job_id=%s", job_id)
         publish_job_failed(job_id=job_id, error=str(exc))
         raise self.retry(exc=exc) from exc
 
