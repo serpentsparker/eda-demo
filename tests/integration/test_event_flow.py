@@ -36,5 +36,6 @@ def test_job_requested_event_reaches_sqs(events_client, sqs_client) -> None:
     assert len(messages) == 1, "Expected exactly one message in the queue"
 
     body = json.loads(messages[0]["Body"])
-    detail = json.loads(body["detail"])
+    # EventBridge delivers `detail` as a parsed object, not a JSON string.
+    detail = body["detail"]
     assert detail["job_id"] == "test-01"

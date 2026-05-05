@@ -3,6 +3,7 @@
 import os
 from typing import TYPE_CHECKING
 
+
 import pytest
 
 if TYPE_CHECKING:
@@ -10,6 +11,13 @@ if TYPE_CHECKING:
 
 LOCALSTACK_ENDPOINT = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "eu-central-1")
+
+
+def pytest_configure(config: "pytest.Config") -> None:
+    config.addinivalue_line(
+        "markers",
+        "integration: marks tests that require LocalStack (deselect with '-m not integration')",
+    )
 
 
 @pytest.fixture(scope="session")

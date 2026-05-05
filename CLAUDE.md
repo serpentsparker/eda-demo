@@ -204,6 +204,13 @@ Each service has its own pytest configuration and must be run from its own direc
 so that `app/` resolves to the correct service package (both services use `app/` as
 their package root — running from the service directory avoids naming conflicts).
 
+Install dev dependencies before running any tests (required for pytest, httpx, etc.):
+
+```bash
+cd api && uv sync --extra dev
+cd worker && uv sync --extra dev
+```
+
 ```bash
 # API unit tests
 cd api && uv run pytest -v
@@ -211,8 +218,13 @@ cd api && uv run pytest -v
 # Worker unit tests
 cd worker && uv run pytest -v
 
-# Integration tests (requires LocalStack running)
-cd api && uv run pytest ../tests/integration/ -m integration -v
+# Integration tests — requires LocalStack and the aws CLI
+# 1. Start LocalStack
+docker compose -f docker/docker-compose.yml up -d localstack
+# 2. Seed resources
+source .env && bash docker/localstack/init/01_create_resources.sh
+# 3. Run tests
+cd api && uv run --env-file ../.env pytest ../tests/integration/ -m integration -v
 
 # With coverage report
 cd api && uv run pytest --cov=app --cov-report=term-missing

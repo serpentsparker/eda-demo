@@ -50,9 +50,9 @@ Interactive docs: `http://localhost:8000/docs`
 ## Development
 
 ```bash
-# Install dependencies
-cd api && uv sync
-cd worker && uv sync
+# Install dependencies (add --extra dev for testing and linting tools)
+cd api && uv sync --extra dev
+cd worker && uv sync --extra dev
 
 # Install git hooks (run once after cloning)
 pre-commit install
@@ -67,8 +67,10 @@ cd api && uv run pytest -v
 # Worker unit tests
 cd worker && uv run pytest -v
 
-# Integration tests (requires LocalStack running)
-cd api && uv run pytest ../tests/integration/ -m integration -v
+# Integration tests — requires LocalStack running and aws CLI installed
+# Start LocalStack: docker compose -f docker/docker-compose.yml up -d localstack
+source .env && bash docker/localstack/init/01_create_resources.sh
+cd api && uv run --env-file ../.env pytest ../tests/integration/ -m integration -v
 ```
 
 ## Pre-commit Hooks
