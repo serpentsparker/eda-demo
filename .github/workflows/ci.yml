@@ -112,7 +112,6 @@ jobs:
           - 4566:4566
         env:
           SERVICES: sqs,events
-          DEFAULT_REGION: eu-central-1
         options: >-
           --health-cmd "curl -sf http://localhost:4566/_localstack/health"
           --health-interval 10s
@@ -129,6 +128,9 @@ jobs:
       - name: Install uv
         run: pip install uv==0.11.8
 
+      - name: Install AWS CLI
+        run: pip install awscli
+
       - name: Install api dependencies
         run: cd api && uv sync --extra dev
 
@@ -138,6 +140,7 @@ jobs:
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test  # pragma: allowlist secret
           AWS_DEFAULT_REGION: eu-central-1
+          LOCALSTACK_ENDPOINT: http://localhost:4566
 
       - name: Run integration tests
         run: cd api && uv run pytest ../tests/integration/ -m integration -v

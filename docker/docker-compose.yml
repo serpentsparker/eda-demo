@@ -5,7 +5,6 @@ services:
       - "4566:4566"
     environment:
       SERVICES: sqs,events
-      DEFAULT_REGION: eu-central-1
       DEBUG: "0"
     volumes:
       - ./localstack/init:/etc/localstack/init/ready.d
