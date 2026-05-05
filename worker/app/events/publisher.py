@@ -1,24 +1,25 @@
 """EventBridge event publisher for the worker service."""
 
+import functools
 import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
 
 import boto3
+import botocore.client
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
-def _get_events_client() -> boto3.client:
-    """Return a boto3 EventBridge client, injecting LocalStack endpoint when configured."""
-    kwargs: dict[str, str] = {
-        "region_name": settings.aws_default_region,
-    }
-    if settings.localstack_endpoint:
-        kwargs["endpoint_url"] = settings.localstack_endpoint
+@functools.cache
+def _get_events_client(region: str, endpoint_url: str | None) -> botocore.client.BaseClient:
+    """Return a cached boto3 EventBridge client."""
+    kwargs: dict[str, str] = {"region_name": region}
+    if endpoint_url:
+        kwargs["endpoint_url"] = endpoint_url
     return boto3.client("events", **kwargs)
 
 
@@ -51,7 +52,7 @@ def publish_job_failed(job_id: str, error: str) -> None:
 
 
 def _put_event(detail_type: str, detail: dict[str, Any]) -> None:
-    client = _get_events_client()
+    client = _get_events_client(settings.aws_default_region, settings.localstack_endpoint)
     response = client.put_events(
         Entries=[
             {
