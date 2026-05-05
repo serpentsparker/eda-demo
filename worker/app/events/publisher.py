@@ -3,19 +3,15 @@
 import json
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+
+import boto3
 
 from app.config import settings
-
-if TYPE_CHECKING:
-    import boto3
 
 logger = logging.getLogger(__name__)
 
 
 def _get_events_client() -> boto3.client:
-    import boto3
-
     """Return a boto3 EventBridge client, injecting LocalStack endpoint when configured."""
     kwargs: dict = {
         "region_name": settings.aws_default_region,
