@@ -65,6 +65,7 @@ def _put_event(detail_type: str, detail: dict[str, Any]) -> None:
     )
     if response.get("FailedEntryCount", 0):
         logger.error("EventBridge put_events failed detail_type=%s: %s", detail_type, response)
+        raise RuntimeError(f"Failed to publish {detail_type} event to EventBridge")
 
 
 def _now() -> str:
