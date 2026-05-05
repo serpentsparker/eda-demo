@@ -28,7 +28,7 @@ jobs:
         run: pip install uv==0.11.8
 
       - name: Install dependencies
-        run: cd ${{ matrix.service }} && uv sync
+        run: cd ${{ matrix.service }} && uv sync --extra dev
 
       - name: Ruff lint
         run: cd ${{ matrix.service }} && uv run ruff check .
