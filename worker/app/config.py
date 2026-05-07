@@ -20,8 +20,18 @@ class Settings(BaseSettings):
     celery_broker_url: str = "sqs://localhost:4566"
     celery_result_backend: str = "redis://localhost:6379/0"
 
+    # Database
+    database_url: str = (
+        "postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo"  # pragma: allowlist secret
+    )
+
     # EventBridge
     eventbridge_bus_name: str = "demo-event-bus"
+
+    @property
+    def database_sync_url(self) -> str:
+        """Synchronous database URL derived from DATABASE_URL for use with psycopg2."""
+        return self.database_url.replace("+asyncpg", "+psycopg2", 1)
 
 
 settings = Settings()
