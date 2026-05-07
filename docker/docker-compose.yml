@@ -28,16 +28,6 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   api:
     build:
       context: ../api
@@ -72,13 +62,10 @@ services:
       - ../.env
     environment:
       LOCALSTACK_ENDPOINT: http://localstack:4566
-      CELERY_BROKER_URL: sqs://test:test@localstack:4566  # pragma: allowlist secret
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/demo-queue
       DATABASE_URL: postgresql+asyncpg://eda_user:eda_pass@postgres:5432/eda_demo  # pragma: allowlist secret
     depends_on:
       localstack:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
