@@ -6,12 +6,12 @@ This file provides guidance to Claude when working in this repository.
 
 ## Project Overview
 
-This project is a **demonstration of event-driven architecture** using Python, the Celery framework, and AWS services (EventBridge and SQS).
+This project is a **demonstration of event-driven architecture** using Python, AWS services (EventBridge and SQS), and PostgreSQL.
 
 It is structured as a **mono-repo** containing two deployable services:
 
 - **`api/`** — An asynchronous REST API built with FastAPI
-- **`worker/`** — A background worker built with Celery for CPU-intensive tasks
+- **`worker/`** — A background job worker that polls SQS directly via boto3
 
 Both services are shipped as Docker images and deployed to **AWS ECS or Kubernetes**. Infrastructure is provisioned with **Terraform**. Local development uses **Docker Compose** with **LocalStack** to emulate AWS services.
 
@@ -34,12 +34,13 @@ project-root/
 │   ├── alembic.ini
 │   ├── Dockerfile
 │   └── pyproject.toml
-├── worker/                     # Celery background worker
+├── worker/                     # SQS-driven background job worker
 │   ├── app/
-│   │   ├── tasks/              # Celery task definitions
+│   │   ├── handlers/           # Job handler functions
 │   │   ├── models/             # SQLAlchemy ORM models
-│   │   ├── events/             # EventBridge event publishers
+│   │   ├── events/             # SQS consumer and EventBridge publishers
 │   │   ├── database.py         # Sync SQLAlchemy engine and update helpers
+│   │   ├── main.py             # Process entry point
 │   │   └── config.py
 │   ├── Dockerfile
 │   └── pyproject.toml
@@ -89,10 +90,6 @@ SQS_QUEUE_URL=http://localhost:4566/000000000000/demo-queue
 # EventBridge
 EVENTBRIDGE_BUS_NAME=demo-event-bus
 
-# Celery
-CELERY_BROKER_URL=sqs://localhost:4566
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
-
 # Database
 DATABASE_URL=postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo  # pragma: allowlist secret
 
@@ -110,7 +107,7 @@ DEBUG=true
 docker compose -f docker/docker-compose.yml up --build
 ```
 
-This starts the API, worker, LocalStack (SQS + EventBridge emulation), and Redis.
+This starts the API, worker, LocalStack (SQS + EventBridge emulation), and PostgreSQL.
 
 ---
 
@@ -173,7 +170,7 @@ uv run uvicorn app.main:app --reload
 
 ```bash
 cd worker
-uv run celery -A app.worker worker --loglevel=info
+uv run python -m app.main
 ```
 
 ### Pre-commit Hooks
@@ -254,8 +251,10 @@ cd worker && uv run pytest -v
 docker compose -f docker/docker-compose.yml up -d localstack
 # 2. Seed resources
 source .env && bash docker/localstack/init/01_create_resources.sh
-# 3. Run tests
+# 3. Run API integration tests (EventBridge → SQS flow)
 cd api && uv run --env-file ../.env pytest ../tests/integration/ -m integration -v
+# 4. Run worker integration tests (SQS consumer)
+cd worker && uv run --env-file ../.env pytest -m integration -v
 
 # With coverage report
 cd api && uv run pytest --cov=app --cov-report=term-missing
@@ -273,7 +272,6 @@ cd api && uv run pytest --cov=app --cov-report=html
 |---|---|
 | Language | Python 3.14 |
 | API Framework | FastAPI |
-| Task Queue | Celery |
 | Database | PostgreSQL 17 |
 | ORM | SQLAlchemy 2.0 (async in API, sync in worker) |
 | DB Driver (API) | asyncpg |
@@ -319,10 +317,9 @@ cd api && uv run pytest --cov=app --cov-report=html
 - Avoid wildcard imports (`from module import *`).
 - Keep functions short and single-purpose. Prefer composition over inheritance.
 
-### AWS & Celery
+### AWS
 
 - Use **`boto3`** for all AWS interactions.
-- Use **`celery`** for all background task definitions.
 - All AWS clients and resources should be initialised via a shared factory/config to support LocalStack endpoint injection.
 - Never hardcode AWS resource names or ARNs — always read from environment variables or config.
 
@@ -384,5 +381,5 @@ terraform apply
 - **Pin dependency versions** in `pyproject.toml` to ensure reproducible builds.
 - **Keep Docker images minimal**: use slim or distroless base images, and do not include dev dependencies in production images.
 - **Use health checks** for all Docker services and ECS task definitions.
-- **Idempotency**: design Celery tasks and EventBridge consumers to be idempotent — safe to retry on failure.
+- **Idempotency**: design job handlers and SQS consumers to be idempotent — safe to retry on failure.
 - **Dead-letter queues (DLQ)**: configure DLQs for all SQS queues to capture failed messages.
