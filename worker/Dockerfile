@@ -10,6 +10,6 @@ RUN uv sync --no-dev
 COPY app/ app/
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD celery -A app.worker inspect ping
+    CMD python -c "import app.main"
 
-CMD ["uv", "run", "celery", "-A", "app.worker", "worker", "--loglevel=info"]
+CMD ["uv", "run", "python", "-m", "app.main"]
