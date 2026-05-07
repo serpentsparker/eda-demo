@@ -25,14 +25,21 @@ project-root/
 │   ├── app/
 │   │   ├── routers/            # API route definitions
 │   │   ├── schemas/            # Pydantic request/response models
+│   │   ├── models/             # SQLAlchemy ORM models
 │   │   ├── events/             # EventBridge event publishers
+│   │   ├── database.py         # Async SQLAlchemy engine and session factory
 │   │   └── config.py
+│   ├── alembic/                # Database migrations
+│   │   └── versions/           # Migration scripts
+│   ├── alembic.ini
 │   ├── Dockerfile
 │   └── pyproject.toml
 ├── worker/                     # Celery background worker
 │   ├── app/
 │   │   ├── tasks/              # Celery task definitions
-│   │   ├── events/             # EventBridge event consumers
+│   │   ├── models/             # SQLAlchemy ORM models
+│   │   ├── events/             # EventBridge event publishers
+│   │   ├── database.py         # Sync SQLAlchemy engine and update helpers
 │   │   └── config.py
 │   ├── Dockerfile
 │   └── pyproject.toml
@@ -86,6 +93,9 @@ EVENTBRIDGE_BUS_NAME=demo-event-bus
 CELERY_BROKER_URL=sqs://localhost:4566
 CELERY_RESULT_BACKEND=redis://localhost:6379/0
 
+# Database
+DATABASE_URL=postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo  # pragma: allowlist secret
+
 # App
 API_HOST=0.0.0.0
 API_PORT=8000
@@ -130,6 +140,27 @@ uv add <package>
 ---
 
 ## Common Commands
+
+### Running Database Migrations
+
+Migrations live in `api/alembic/` and must be run from the `api/` directory.
+The Docker Compose stack runs them automatically before the API starts.
+
+```bash
+# Apply all pending migrations
+cd api && uv run alembic upgrade head
+
+# Roll back the most recent migration
+cd api && uv run alembic downgrade -1
+
+# Generate a new migration after changing a model
+cd api && uv run alembic revision --autogenerate -m "describe the change"
+
+# Show migration history
+cd api && uv run alembic history
+```
+
+> In CI/CD pipelines, run `alembic upgrade head` as a dedicated step before deploying the API image.
 
 ### Running the API locally (without Docker)
 
@@ -243,6 +274,11 @@ cd api && uv run pytest --cov=app --cov-report=html
 | Language | Python 3.14 |
 | API Framework | FastAPI |
 | Task Queue | Celery |
+| Database | PostgreSQL 17 |
+| ORM | SQLAlchemy 2.0 (async in API, sync in worker) |
+| DB Driver (API) | asyncpg |
+| DB Driver (worker) | psycopg2-binary |
+| Migrations | Alembic (async mode, lives in `api/`) |
 | AWS SDK | boto3 |
 | Infrastructure | Terraform |
 | Containerisation | Docker + Docker Compose |
