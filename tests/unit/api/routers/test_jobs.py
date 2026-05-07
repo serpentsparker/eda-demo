@@ -2,18 +2,10 @@
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from httpx import AsyncClient
 
-
-@pytest.fixture(autouse=True)
-def clear_jobs_store() -> None:
-    """Reset the in-memory jobs store before each test to prevent state leakage."""
-    from app.routers.jobs import _jobs
-
-    _jobs.clear()
-    yield
-    _jobs.clear()
+from app.models.jobs import Job
+from app.schemas.jobs import JobStatus
 
 
 async def test_submit_job_returns_202_with_pending_status(
@@ -37,15 +29,17 @@ async def test_submit_job_returns_202_with_pending_status(
     assert body["status"] == "pending"
 
 
-async def test_get_job_returns_current_status(api_client: AsyncClient) -> None:
-    """GET /jobs/{job_id} should return the status recorded at submission time."""
+async def test_get_job_returns_current_status(
+    api_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """GET /jobs/{job_id} should return the status for a known job_id."""
     fake_id = "01J8ABCDEF000000000000001"
-    with patch(
-        "app.routers.jobs.publish_job_requested",
-        new_callable=AsyncMock,
-        return_value=fake_id,
-    ):
-        await api_client.post("/jobs", json={"job_type": "echo"})
+    mock_db_session.get = AsyncMock(
+        return_value=Job(
+            id=fake_id, job_type="echo", parameters={}, status=JobStatus.PENDING
+        )
+    )
 
     response = await api_client.get(f"/jobs/{fake_id}")
 
@@ -55,16 +49,24 @@ async def test_get_job_returns_current_status(api_client: AsyncClient) -> None:
     assert body["status"] == "pending"
 
 
-async def test_get_job_returns_404_for_unknown_id(api_client: AsyncClient) -> None:
+async def test_get_job_returns_404_for_unknown_id(
+    api_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
     """GET /jobs/{job_id} should return 404 when the job_id does not exist."""
+    mock_db_session.get = AsyncMock(return_value=None)
+
     response = await api_client.get("/jobs/does-not-exist")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Job not found"
 
 
-async def test_submit_job_stores_pending_status(api_client: AsyncClient) -> None:
-    """Submitting a job should create an entry in the jobs store with pending status."""
+async def test_submit_job_persists_pending_status(
+    api_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """POST /jobs should persist a new Job record with pending status to the database."""
     fake_id = "01J8ABCDEF000000000000002"
     with patch(
         "app.routers.jobs.publish_job_requested",
@@ -73,7 +75,7 @@ async def test_submit_job_stores_pending_status(api_client: AsyncClient) -> None
     ):
         await api_client.post("/jobs", json={"job_type": "echo"})
 
-    from app.routers.jobs import _jobs
-    from app.schemas.jobs import JobStatus
-
-    assert _jobs[fake_id] == JobStatus.PENDING
+    mock_db_session.add.assert_called_once()
+    job_arg = mock_db_session.add.call_args[0][0]
+    assert job_arg.id == fake_id
+    assert job_arg.status == JobStatus.PENDING
