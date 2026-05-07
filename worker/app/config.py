@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # AWS
-    aws_access_key_id: str = "test"
-    aws_secret_access_key: str = "test"
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
     aws_default_region: str = "eu-central-1"
     localstack_endpoint: str | None = None
 

@@ -1,31 +1,29 @@
 """EventBridge event publisher for the worker service."""
 
+import functools
 import json
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import Any
+
+import boto3
+import botocore.client
 
 from app.config import settings
-
-if TYPE_CHECKING:
-    import boto3
 
 logger = logging.getLogger(__name__)
 
 
-def _get_events_client() -> boto3.client:
-    import boto3
-
-    """Return a boto3 EventBridge client, injecting LocalStack endpoint when configured."""
-    kwargs: dict = {
-        "region_name": settings.aws_default_region,
-    }
-    if settings.localstack_endpoint:
-        kwargs["endpoint_url"] = settings.localstack_endpoint
+@functools.cache
+def _get_events_client(region: str, endpoint_url: str | None) -> botocore.client.BaseClient:
+    """Return a cached boto3 EventBridge client."""
+    kwargs: dict[str, str] = {"region_name": region}
+    if endpoint_url:
+        kwargs["endpoint_url"] = endpoint_url
     return boto3.client("events", **kwargs)
 
 
-def publish_job_completed(job_id: str, result: dict) -> None:
+def publish_job_completed(job_id: str, result: dict[str, Any]) -> None:
     """Publish a JobCompleted event to EventBridge.
 
     Args:
@@ -53,8 +51,17 @@ def publish_job_failed(job_id: str, error: str) -> None:
     logger.warning("Published JobFailed event job_id=%s error=%s", job_id, error)
 
 
-def _put_event(detail_type: str, detail: dict) -> None:
-    client = _get_events_client()
+def _put_event(detail_type: str, detail: dict[str, Any]) -> None:
+    """Publish a single event entry to EventBridge.
+
+    Args:
+        detail_type: The EventBridge DetailType field.
+        detail: The event detail payload.
+
+    Raises:
+        RuntimeError: If EventBridge rejects the entry.
+    """
+    client = _get_events_client(settings.aws_default_region, settings.localstack_endpoint)
     response = client.put_events(
         Entries=[
             {
@@ -67,7 +74,9 @@ def _put_event(detail_type: str, detail: dict) -> None:
     )
     if response.get("FailedEntryCount", 0):
         logger.error("EventBridge put_events failed detail_type=%s: %s", detail_type, response)
+        raise RuntimeError(f"Failed to publish {detail_type} event to EventBridge")
 
 
 def _now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(UTC).isoformat()

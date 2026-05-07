@@ -1,8 +1,11 @@
 """Unit tests for Celery job task dispatch logic."""
 
-import pytest
+from unittest.mock import patch
 
-from app.tasks.job_tasks import _dispatch
+import pytest
+from celery.exceptions import Retry
+
+from app.tasks.job_tasks import _dispatch, process_job
 
 
 def test_dispatch_echo_returns_parameters() -> None:
@@ -16,3 +19,27 @@ def test_dispatch_unknown_job_type_raises_value_error() -> None:
     """Unknown job_type should raise ValueError."""
     with pytest.raises(ValueError, match="Unknown job_type"):
         _dispatch("nonexistent", {})
+
+
+def test_process_job_success_publishes_completed_and_returns_result() -> None:
+    """process_job should call publish_job_completed and return the handler result."""
+    params = {"msg": "hello"}
+
+    with patch("app.tasks.job_tasks.publish_job_completed") as mock_completed:
+        eager_result = process_job.apply(args=["job-1", "echo", params])
+
+    assert eager_result.get() == {"echo": params}
+    mock_completed.assert_called_once_with(job_id="job-1", result={"echo": params})
+
+
+def test_process_job_failure_publishes_failed_and_retries() -> None:
+    """process_job should call publish_job_failed and raise Retry on handler error."""
+    error = ValueError("bad input")
+
+    with patch.object(process_job, "retry", side_effect=Retry()):
+        with patch("app.tasks.job_tasks._dispatch", side_effect=error):
+            with patch("app.tasks.job_tasks.publish_job_failed") as mock_failed:
+                with pytest.raises(Retry):
+                    process_job.apply(args=["job-2", "echo", {}], throw=True)
+
+    mock_failed.assert_called_once_with(job_id="job-2", error="bad input")

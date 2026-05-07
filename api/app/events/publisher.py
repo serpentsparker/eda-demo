@@ -1,30 +1,27 @@
 """EventBridge event publisher for the API service."""
 
+import asyncio
+import functools
 import json
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 
+import boto3
+import botocore.client
 from ulid import ULID
 
 from app.config import settings
 from app.schemas.jobs import JobRequest
 
-if TYPE_CHECKING:
-    import boto3
-
 logger = logging.getLogger(__name__)
 
 
-def _get_events_client() -> boto3.client:
-    import boto3
-
-    """Return a boto3 EventBridge client, injecting LocalStack endpoint when configured."""
-    kwargs: dict = {
-        "region_name": settings.aws_default_region,
-    }
-    if settings.localstack_endpoint:
-        kwargs["endpoint_url"] = settings.localstack_endpoint
+@functools.cache
+def _get_events_client(region: str, endpoint_url: str | None) -> botocore.client.BaseClient:
+    """Return a cached boto3 EventBridge client."""
+    kwargs: dict[str, str] = {"region_name": region}
+    if endpoint_url:
+        kwargs["endpoint_url"] = endpoint_url
     return boto3.client("events", **kwargs)
 
 
@@ -45,8 +42,9 @@ async def publish_job_requested(payload: JobRequest) -> str:
         "requested_at": datetime.now(UTC).isoformat(),
     }
 
-    client = _get_events_client()
-    response = client.put_events(
+    client = _get_events_client(settings.aws_default_region, settings.localstack_endpoint)
+    response = await asyncio.to_thread(
+        client.put_events,
         Entries=[
             {
                 "Source": "eda-demo.api",
@@ -54,7 +52,7 @@ async def publish_job_requested(payload: JobRequest) -> str:
                 "Detail": json.dumps(event_detail),
                 "EventBusName": settings.eventbridge_bus_name,
             }
-        ]
+        ],
     )
 
     failed = response.get("FailedEntryCount", 0)
