@@ -20,3 +20,6 @@ celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
 )
+
+# Register the SQS event consumer so it starts with the worker process.
+import app.events.consumer  # noqa: E402, F401
