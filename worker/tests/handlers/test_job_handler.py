@@ -38,7 +38,7 @@ def test_handle_job_success_updates_status_and_publishes_completed() -> None:
 
 
 def test_handle_job_failure_updates_status_and_publishes_failed() -> None:
-    """handle_job should mark the job failed, publish JobFailed, and re-raise the exception."""
+    """handle_job should mark the job failed, publish JobFailed, and return None."""
     error = ValueError("bad input")
 
     with (
@@ -46,9 +46,9 @@ def test_handle_job_failure_updates_status_and_publishes_failed() -> None:
         patch("app.handlers.job_handler.update_job_status") as mock_update,
         patch("app.handlers.job_handler.publish_job_failed") as mock_failed,
     ):
-        with pytest.raises(ValueError, match="bad input"):
-            handle_job("job-2", "echo", {})
+        result = handle_job("job-2", "echo", {})
 
+    assert result is None
     mock_failed.assert_called_once_with(job_id="job-2", error="bad input")
     mock_update.assert_any_call("job-2", JobStatus.RUNNING)
     mock_update.assert_any_call("job-2", JobStatus.FAILED)

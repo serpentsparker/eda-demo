@@ -69,6 +69,4 @@ def test_handle_message_uses_detail_type_key_fallback() -> None:
     with patch("app.handlers.job_handler.handle_job", mock_handle):
         _handle_message(message)
 
-    mock_handle.assert_called_once_with(
-        job_id="job-456", job_type="echo", parameters={}
-    )
+    mock_handle.assert_called_once_with(job_id="job-456", job_type="echo", parameters={})

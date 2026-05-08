@@ -15,17 +15,15 @@ async def mock_db_session() -> AsyncMock:
 
 
 @pytest_asyncio.fixture
-async def api_client(mock_db_session: AsyncMock) -> AsyncGenerator[AsyncClient, None]:
+async def api_client(mock_db_session: AsyncMock) -> AsyncGenerator[AsyncClient]:
     """Return an async test client with the database dependency overridden."""
     from app.database import get_session
     from app.main import app
 
-    async def override_get_session() -> AsyncGenerator[AsyncMock, None]:
+    async def override_get_session() -> AsyncGenerator[AsyncMock]:
         yield mock_db_session
 
     app.dependency_overrides[get_session] = override_get_session
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
     app.dependency_overrides.clear()
