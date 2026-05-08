@@ -1,6 +1,7 @@
 """Pydantic schemas for job request/response payloads."""
 
 from enum import StrEnum
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -25,5 +26,5 @@ class JobRequest(BaseModel):
 class JobResponse(BaseModel):
     """Response returned after job submission or status query."""
 
-    job_id: str
+    job_id: UUID
     status: JobStatus
