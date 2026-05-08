@@ -51,9 +51,7 @@ project-root/
 ├── docker/
 │   ├── docker-compose.yml      # Local dev environment
 │   └── localstack/             # LocalStack config (emulates SQS, EventBridge)
-├── tests/
-│   ├── unit/
-│   └── integration/            # Run against LocalStack only
+├── integration/                # End-to-end black-box integration tests
 ├── .env.example
 ├── .github/
 │   └── workflows/              # GitHub Actions CI/CD workflows
@@ -232,29 +230,34 @@ Each service has its own pytest configuration and must be run from its own direc
 so that `app/` resolves to the correct service package (both services use `app/` as
 their package root — running from the service directory avoids naming conflicts).
 
-Install dev dependencies before running any tests (required for pytest, httpx, etc.):
+Unit tests live alongside each service (`api/tests/`, `worker/tests/`) and require no
+infrastructure. Integration tests live in `integration/` as a separate project with its
+own venv and require the full Docker Compose stack.
+
+Install dev dependencies before running unit tests:
 
 ```bash
 cd api && uv sync --extra dev
 cd worker && uv sync --extra dev
 ```
 
+Install integration test dependencies (once):
+
 ```bash
-# API unit tests
+cd integration && uv sync
+```
+
+```bash
+# API unit tests — no infrastructure required
 cd api && uv run pytest -v
 
-# Worker unit tests
+# Worker unit tests — no infrastructure required
 cd worker && uv run pytest -v
 
-# Integration tests — requires LocalStack and the aws CLI
-# 1. Start LocalStack
-docker compose -f docker/docker-compose.yml up -d localstack
-# 2. Seed resources
-source .env && bash docker/localstack/init/01_create_resources.sh
-# 3. Run API integration tests (EventBridge → SQS flow)
-cd api && uv run --env-file ../.env pytest ../tests/integration/ -m integration -v
-# 4. Run worker integration tests (SQS consumer)
-cd worker && uv run --env-file ../.env pytest -m integration -v
+# End-to-end integration tests — require the full stack (API, worker, LocalStack, PostgreSQL)
+# LocalStack init scripts run automatically on startup; no manual seeding needed.
+docker compose -f docker/docker-compose.yml up --build -d
+cd integration && uv run pytest -v
 
 # With coverage report
 cd api && uv run pytest --cov=app --cov-report=term-missing
@@ -328,10 +331,10 @@ cd api && uv run pytest --cov=app --cov-report=html
 ## Testing Conventions
 
 - Use **`pytest`** for all tests.
-- **Unit tests** (`tests/unit/`): test business logic in isolation, no external dependencies.
-- **Integration tests** (`tests/integration/`): run against **LocalStack** only for local development. Do not mock AWS services — use LocalStack or a real AWS deployment.
+- **Unit tests** (`api/tests/`, `worker/tests/`): test business logic in isolation, no external dependencies. Each service owns its own test suite.
+- **Integration tests** (`integration/`): black-box end-to-end tests that talk to the running stack via HTTP. No imports of internal `app.*` modules — only `httpx` against the API. Require the full Docker Compose stack (API, worker, LocalStack, PostgreSQL).
 - Use **`pytest-cov`** for coverage reports.
-- Test files must mirror the source structure (e.g. `api/app/routers/foo.py` → `tests/unit/api/routers/test_foo.py`).
+- Test files must mirror the source structure (e.g. `api/app/routers/foo.py` → `api/tests/routers/test_foo.py`).
 - Name test functions descriptively: `test_<what>_<expected_outcome>`.
 
 ---
