@@ -21,7 +21,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.create_table(
         "jobs",
-        sa.Column("id", sa.Uuid(), primary_key=True),
+        sa.Column("id", sa.String(26), primary_key=True),
         sa.Column("job_type", sa.String(255), nullable=False),
         sa.Column("parameters", sa.JSON(), nullable=False, server_default="{}"),
         sa.Column("status", sa.String(50), nullable=False, server_default="pending"),
