@@ -4,9 +4,9 @@ A demonstration of **event-driven architecture** using Python and AWS services (
 
 ## Services
 
-| Service | Description |
-|---|---|
-| `api/` | Async REST API built with FastAPI |
+| Service   | Description                                    |
+| --------- | ---------------------------------------------- |
+| `api/`    | Async REST API built with FastAPI              |
 | `worker/` | Background job worker that polls SQS via boto3 |
 
 Both services are shipped as Docker images and deployed to AWS ECS or Kubernetes. Infrastructure is provisioned with Terraform. Local development uses Docker Compose with LocalStack.
@@ -75,19 +75,19 @@ cd integration && uv run pytest -v
 
 This project uses [pre-commit](https://pre-commit.com/) to enforce quality and security checks on every commit.
 
-| Hook | Purpose |
-|---|---|
-| `trailing-whitespace` | Remove trailing whitespace |
-| `end-of-file-fixer` | Ensure files end with a newline |
-| `check-yaml` / `check-toml` / `check-json` | Validate config file syntax |
-| `check-merge-conflict` | Block accidental merge conflict markers |
-| `check-added-large-files` | Reject files > 500 KB |
-| `no-commit-to-branch` | Prevent direct commits to `main` |
-| `detect-private-key` | Block PEM/RSA private keys |
-| `ruff` + `ruff-format` | Python lint, auto-fix, and format |
-| `detect-secrets` | Scan for leaked credentials and API keys |
-| `terraform_fmt` | Auto-format Terraform files |
-| `hadolint` | Lint Dockerfiles |
+| Hook                                       | Purpose                                  |
+| ------------------------------------------ | ---------------------------------------- |
+| `trailing-whitespace`                      | Remove trailing whitespace               |
+| `end-of-file-fixer`                        | Ensure files end with a newline          |
+| `check-yaml` / `check-toml` / `check-json` | Validate config file syntax              |
+| `check-merge-conflict`                     | Block accidental merge conflict markers  |
+| `check-added-large-files`                  | Reject files > 500 KB                    |
+| `no-commit-to-branch`                      | Prevent direct commits to `main`         |
+| `detect-private-key`                       | Block PEM/RSA private keys               |
+| `ruff` + `ruff-format`                     | Python lint, auto-fix, and format        |
+| `detect-secrets`                           | Scan for leaked credentials and API keys |
+| `terraform_fmt`                            | Auto-format Terraform files              |
+| `hadolint`                                 | Lint Dockerfiles                         |
 
 ```bash
 # Install hooks into .git/hooks
@@ -120,9 +120,87 @@ terraform apply
 
 ## Architecture
 
+The system consists of two independently deployed services that communicate exclusively through events. The API never calls the worker directly — it publishes an event and returns immediately. The worker consumes from a queue and writes results back to the shared database.
+
 ```
-Client → FastAPI (api/) → EventBridge → SQS (demo-queue) → Worker (worker/)
-                                                                  ↓
-                                                     PostgreSQL (job status)
-                                                     EventBridge (outcome event)
+                              JobRequested event
+ ┌────────┐   POST /jobs   ┌─────────┐             ┌─────────────────┐
+ │ Client │ ─────────────► │ FastAPI │ ──────────► │   EventBridge   │
+ │        │ ◄────────────  │  api/   │             │  demo-event-bus │
+ └───┬────┘  202 Accepted  └────┬────┘             └────────┬────────┘
+     │                          │                           │ job-requested-rule
+     │ GET /jobs/{id}           │ read/write                ▼
+     │ ◄── job status           ▼                  ┌─────────────────┐     ┌─────────────┐
+     │                     ┌─────────┐             │   SQS Queue     │────►│   SQS DLQ   │
+     │                     │Postgres │             │   demo-queue    │     │ (after ×5)  │
+     │                     │  jobs   │◄──────────  └────────┬────────┘     └─────────────┘
+     │                     └─────────┘  status              │ long-poll
+     │                          ▲        update             ▼
+     │                          └─────────────────  ┌───────────────┐
+     │                                              │    Worker     │
+     └─────────────────────────────────────────────►│   worker/     │
+                                                    └───────┬───────┘
+                                                            │ JobCompleted / JobFailed events
+                                                            ▼
+                                                    ┌─────────────────┐
+                                                    │   EventBridge   │
+                                                    │  demo-event-bus │
+                                                    └─────────────────┘
 ```
+
+### Data flow
+
+1. **Job submitted** — client sends `POST /jobs` with a `job_type` and `parameters`.
+2. **Persisted immediately** — the API writes a `Job` record to PostgreSQL with `status=pending` before doing anything else. This ensures any subsequent status poll always finds the record.
+3. **Event published** — the API sends a `JobRequested` event to EventBridge and returns `202 Accepted` with the `job_id`.
+4. **Routed to SQS** — the `job-requested-rule` on EventBridge matches events from `eda-demo.api` with `detail-type: JobRequested` and delivers them to `demo-queue`.
+5. **Worker picks up the message** — the worker long-polls SQS (up to 10 messages, 20 s wait) and dispatches each message to a thread pool.
+6. **Job executed** — the worker updates status to `running`, runs the handler for the given `job_type`, then updates status to `completed` or `failed`.
+7. **Outcome published** — the worker emits a `JobCompleted` or `JobFailed` event to EventBridge, then deletes the SQS message.
+8. **Client polls status** — `GET /jobs/{job_id}` reads directly from PostgreSQL at any point.
+
+### Technology choices
+
+| Technology      | Role               | Why                                                                                                         |
+| --------------- | ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **FastAPI**     | REST API           | Async-native; automatic OpenAPI docs at `/docs`                                                             |
+| **asyncpg**     | DB driver (API)    | High-performance async PostgreSQL driver; required by async SQLAlchemy                                      |
+| **EventBridge** | Event bus          | Content-based routing rules decouple producers from consumers; no consumer address embedded in the producer |
+| **SQS**         | Message queue      | At-least-once delivery, visibility timeout retries, and DLQ support without additional infrastructure       |
+| **psycopg2**    | DB driver (worker) | Synchronous driver keeps the multi-threaded worker model straightforward                                    |
+| **PostgreSQL**  | Job state          | Durable, queryable job state; allows status polling without a separate cache layer                          |
+
+### Event catalogue
+
+All events flow through the `demo-event-bus` EventBridge custom bus.
+
+| Event          | Source            | Publisher | Key payload fields                                 |
+| -------------- | ----------------- | --------- | -------------------------------------------------- |
+| `JobRequested` | `eda-demo.api`    | API       | `job_id`, `job_type`, `parameters`, `requested_at` |
+| `JobCompleted` | `eda-demo.worker` | Worker    | `job_id`, `result`, `completed_at`                 |
+| `JobFailed`    | `eda-demo.worker` | Worker    | `job_id`, `error`, `failed_at`                     |
+
+### Job lifecycle
+
+```
+POST /jobs
+    │
+    ▼
+[ pending ] ──── worker picks up ────► [ running ]
+                                            │
+                              ┌─────────────┴─────────────┐
+                           success                      failure
+                              │                            │
+                              ▼                            ▼
+                        [ completed ]               [ failed ]
+```
+
+### Reliability
+
+**Visibility timeout retry** — if a worker thread raises an unhandled exception, the SQS message is not deleted. After the visibility timeout (30 s) expires, SQS makes the message visible again for another attempt.
+
+**Dead-letter queue** — after 5 failed receive attempts, the message moves to `demo-queue-dlq` and is excluded from further processing, preventing a poison message from blocking the queue.
+
+**Write ordering** — the API commits the `Job` record to PostgreSQL before publishing the event, so the worker and any polling client always find the record when they look for it.
+
+**Failure scope** — business-logic failures (unknown `job_type`, handler errors) are handled inside the worker: status is set to `failed`, an outcome event is published, and the SQS message is deleted. Only infrastructure failures (database unreachable, network error) propagate out and trigger a retry via visibility timeout.
