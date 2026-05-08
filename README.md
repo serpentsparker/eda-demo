@@ -58,9 +58,9 @@ cd integration && uv sync
 # Install git hooks (run once after cloning)
 pre-commit install
 
-# Lint & format
-uv run ruff check .
-uv run ruff format .
+# Lint & format (run from within each service directory)
+cd api && uv run ruff check . && uv run ruff format .
+cd worker && uv run ruff check . && uv run ruff format .
 
 # Unit tests — no infrastructure required
 cd api && uv run pytest -v

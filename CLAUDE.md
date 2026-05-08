@@ -31,6 +31,7 @@ project-root/
 │   │   └── config.py
 │   ├── alembic/                # Database migrations
 │   │   └── versions/           # Migration scripts
+│   ├── tests/                  # API unit tests
 │   ├── alembic.ini
 │   ├── Dockerfile
 │   └── pyproject.toml
@@ -42,6 +43,7 @@ project-root/
 │   │   ├── database.py         # Sync SQLAlchemy engine and update helpers
 │   │   ├── main.py             # Process entry point
 │   │   └── config.py
+│   ├── tests/                  # Worker unit tests
 │   ├── Dockerfile
 │   └── pyproject.toml
 ├── infra/                      # Terraform infrastructure
@@ -122,6 +124,7 @@ Install dependencies for each service:
 ```bash
 cd api && uv sync
 cd worker && uv sync
+cd integration && uv sync
 ```
 
 Add a new dependency:
@@ -213,15 +216,20 @@ detect-secrets audit .secrets.baseline
 
 ### Linting & Formatting
 
+Ruff is installed in each service's dev venv, so lint commands must be run from within the service directory.
+
 ```bash
 # Lint
-uv run ruff check .
+cd api && uv run ruff check .
+cd worker && uv run ruff check .
 
 # Format
-uv run ruff format .
+cd api && uv run ruff format .
+cd worker && uv run ruff format .
 
 # Auto-fix
-uv run ruff check --fix .
+cd api && uv run ruff check --fix .
+cd worker && uv run ruff check --fix .
 ```
 
 ### Running Tests
