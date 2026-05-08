@@ -399,3 +399,10 @@ terraform apply
 
 - **Never** add `Co-Authored-By` or any other AI attribution lines to git commits.
 - **Never** mention Claude, Claude Code, or any AI agent in commit messages, pull request descriptions, code comments, or documentation.
+
+## Git Workflow
+
+- **Always ask before committing.** Never create a git commit without explicit user approval, unless the user has explicitly stated that automatic committing is part of the proposed workflow for a specific task.
+- **Use small, granular commits.** Each commit should represent a single logical change. Do not bundle unrelated changes into one commit.
+- **Never modify the git configuration.**
+- **Never push to the remote repository** unless explicitly asked.
