@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from ulid import ULID
 
 from app.database import get_session
 from app.events.publisher import publish_job_requested
@@ -17,7 +18,7 @@ async def submit_job(
     session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> JobResponse:
     """Accept a job request, persist it, and emit a JobRequested event to EventBridge."""
-    job_id = await publish_job_requested(payload)
+    job_id = str(ULID())
     job = Job(
         id=job_id,
         job_type=payload.job_type,
@@ -26,6 +27,7 @@ async def submit_job(
     )
     session.add(job)
     await session.commit()
+    await publish_job_requested(job_id=job_id, payload=payload)
     return JobResponse(job_id=job_id, status=JobStatus.PENDING)
 
 
