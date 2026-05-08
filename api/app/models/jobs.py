@@ -1,5 +1,6 @@
 """SQLAlchemy ORM model for the jobs table."""
 
+import uuid
 from datetime import datetime
 
 import sqlalchemy as sa
@@ -15,7 +16,7 @@ class Job(Base):
 
     __tablename__ = "jobs"
 
-    id: Mapped[str] = mapped_column(sa.String(26), primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(sa.Uuid(), primary_key=True)
     job_type: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     parameters: Mapped[dict] = mapped_column(sa.JSON, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(sa.String(50), nullable=False, default="pending")
