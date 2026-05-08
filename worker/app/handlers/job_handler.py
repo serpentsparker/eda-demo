@@ -1,23 +1,27 @@
-"""Celery task definitions for job processing."""
+"""Plain job handler — processes jobs dispatched from the SQS consumer."""
 
 import logging
 from typing import Any
 
-from celery import Task
-
 from app.database import update_job_status
 from app.events.publisher import publish_job_completed, publish_job_failed
 from app.models.jobs import JobStatus
-from app.worker import celery_app
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=10)
-def process_job(
-    self: Task, job_id: str, job_type: str, parameters: dict[str, Any]
-) -> dict[str, Any]:
-    """Process a job dispatched from the API via EventBridge → SQS.
+def handle_job(job_id: str, job_type: str, parameters: dict[str, Any]) -> dict[str, Any] | None:
+    """Process a job received from the SQS consumer.
+
+    Marks the job as running, dispatches it to the appropriate handler, then
+    marks it completed or failed and publishes the outcome event.  Exceptions
+    from the handler are caught and handled here; the SQS message is always
+    deleted by the caller on normal return.
+
+    Exceptions propagate only when the error occurs before or during error
+    handling itself (e.g. a database connection failure on the initial status
+    update), signalling to the consumer that the message should not be deleted
+    so SQS visibility-timeout retry can attempt the job again.
 
     Args:
         job_id: Unique job identifier.
@@ -25,7 +29,7 @@ def process_job(
         parameters: Arbitrary job parameters.
 
     Returns:
-        A dict containing the job result.
+        A dict containing the job result, or None if the job failed.
     """
     logger.info("Starting job job_id=%s job_type=%s", job_id, job_type)
     update_job_status(job_id, JobStatus.RUNNING)
@@ -39,7 +43,7 @@ def process_job(
         logger.exception("Job failed job_id=%s", job_id)
         update_job_status(job_id, JobStatus.FAILED)
         publish_job_failed(job_id=job_id, error=str(exc))
-        raise self.retry(exc=exc) from exc
+        return None
 
 
 def _dispatch(job_type: str, parameters: dict[str, Any]) -> dict[str, Any]:

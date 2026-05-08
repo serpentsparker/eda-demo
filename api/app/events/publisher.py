@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 
 import boto3
 import botocore.client
-from ulid import ULID
 
 from app.config import settings
 from app.schemas.jobs import JobRequest
@@ -25,16 +24,13 @@ def _get_events_client(region: str, endpoint_url: str | None) -> botocore.client
     return boto3.client("events", **kwargs)
 
 
-async def publish_job_requested(payload: JobRequest) -> str:
-    """Publish a JobRequested event to EventBridge and return the generated job ID.
+async def publish_job_requested(job_id: str, payload: JobRequest) -> None:
+    """Publish a JobRequested event to EventBridge.
 
     Args:
+        job_id: The pre-generated job ID to include in the event.
         payload: The incoming job request payload.
-
-    Returns:
-        The generated job ID (ULID string).
     """
-    job_id = str(ULID())
     event_detail = {
         "job_id": job_id,
         "job_type": payload.job_type,
@@ -61,4 +57,3 @@ async def publish_job_requested(payload: JobRequest) -> str:
         raise RuntimeError(f"Failed to publish JobRequested event for job {job_id}")
 
     logger.info("Published JobRequested event job_id=%s", job_id)
-    return job_id

@@ -1,13 +1,13 @@
 # EDA Demo
 
-A demonstration of **event-driven architecture** using Python, Celery, and AWS services (EventBridge + SQS).
+A demonstration of **event-driven architecture** using Python and AWS services (EventBridge + SQS + PostgreSQL).
 
 ## Services
 
 | Service | Description |
 |---|---|
 | `api/` | Async REST API built with FastAPI |
-| `worker/` | Background worker built with Celery |
+| `worker/` | Background job worker that polls SQS via boto3 |
 
 Both services are shipped as Docker images and deployed to AWS ECS or Kubernetes. Infrastructure is provisioned with Terraform. Local development uses Docker Compose with LocalStack.
 
@@ -33,9 +33,9 @@ docker compose -f docker/docker-compose.yml up --build
 
 This starts:
 - FastAPI API on `http://localhost:8000`
-- Celery worker
+- SQS worker (polls demo-queue via boto3)
 - LocalStack (SQS + EventBridge) on `http://localhost:4566`
-- Redis on `localhost:6379`
+- PostgreSQL on `localhost:5432`
 
 ### 3. Explore the API
 
@@ -53,24 +53,22 @@ Interactive docs: `http://localhost:8000/docs`
 # Install dependencies (add --extra dev for testing and linting tools)
 cd api && uv sync --extra dev
 cd worker && uv sync --extra dev
+cd integration && uv sync
 
 # Install git hooks (run once after cloning)
 pre-commit install
 
-# Lint & format
-uv run ruff check .
-uv run ruff format .
+# Lint & format (run from within each service directory)
+cd api && uv run ruff check . && uv run ruff format .
+cd worker && uv run ruff check . && uv run ruff format .
 
-# API unit tests
+# Unit tests — no infrastructure required
 cd api && uv run pytest -v
-
-# Worker unit tests
 cd worker && uv run pytest -v
 
-# Integration tests — requires LocalStack running and aws CLI installed
-# Start LocalStack: docker compose -f docker/docker-compose.yml up -d localstack
-source .env && bash docker/localstack/init/01_create_resources.sh
-cd api && uv run --env-file ../.env pytest ../tests/integration/ -m integration -v
+# End-to-end integration tests — require the full stack
+docker compose -f docker/docker-compose.yml up --build -d
+cd integration && uv run pytest -v
 ```
 
 ## Pre-commit Hooks
@@ -123,7 +121,8 @@ terraform apply
 ## Architecture
 
 ```
-Client → FastAPI (api/) → EventBridge → SQS → Celery Worker (worker/)
-                                                      ↓
-                                              Result stored / event emitted
+Client → FastAPI (api/) → EventBridge → SQS (demo-queue) → Worker (worker/)
+                                                                  ↓
+                                                     PostgreSQL (job status)
+                                                     EventBridge (outcome event)
 ```

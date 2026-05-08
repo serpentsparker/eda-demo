@@ -14,11 +14,9 @@ class Settings(BaseSettings):
     aws_default_region: str = "eu-central-1"
     localstack_endpoint: str | None = None
 
-    # SQS / Celery broker
+    # SQS
     sqs_queue_name: str = "demo-queue"
     sqs_queue_url: str = "http://localhost:4566/000000000000/demo-queue"
-    celery_broker_url: str = "sqs://localhost:4566"
-    celery_result_backend: str = "redis://localhost:6379/0"
 
     # Database
     database_url: str = (

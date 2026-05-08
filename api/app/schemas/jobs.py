@@ -15,7 +15,7 @@ class JobStatus(StrEnum):
 class JobRequest(BaseModel):
     """Payload for submitting a new job."""
 
-    job_type: str = Field(..., description="Logical job type identifier")
+    job_type: str = Field(..., description="Logical job type identifier", examples=["echo"])
     parameters: dict[str, str | int | float | bool] = Field(
         default_factory=dict,
         description="Arbitrary job parameters",

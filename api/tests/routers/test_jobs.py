@@ -1,6 +1,6 @@
 """Unit tests for the jobs router endpoints."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from httpx import AsyncClient
 
@@ -13,10 +13,11 @@ async def test_submit_job_returns_202_with_pending_status(
 ) -> None:
     """POST /jobs should return HTTP 202 with the generated job_id and pending status."""
     fake_id = "01J8ABCDEF000000000000000"
-    with patch(
-        "app.routers.jobs.publish_job_requested",
-        new_callable=AsyncMock,
-        return_value=fake_id,
+    mock_ulid = MagicMock()
+    mock_ulid.return_value = fake_id
+    with (
+        patch("app.routers.jobs.ULID", mock_ulid),
+        patch("app.routers.jobs.publish_job_requested", new_callable=AsyncMock),
     ):
         response = await api_client.post(
             "/jobs",
@@ -36,9 +37,7 @@ async def test_get_job_returns_current_status(
     """GET /jobs/{job_id} should return the status for a known job_id."""
     fake_id = "01J8ABCDEF000000000000001"
     mock_db_session.get = AsyncMock(
-        return_value=Job(
-            id=fake_id, job_type="echo", parameters={}, status=JobStatus.PENDING
-        )
+        return_value=Job(id=fake_id, job_type="echo", parameters={}, status=JobStatus.PENDING)
     )
 
     response = await api_client.get(f"/jobs/{fake_id}")
@@ -66,12 +65,13 @@ async def test_submit_job_persists_pending_status(
     api_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    """POST /jobs should persist a new Job record with pending status to the database."""
+    """POST /jobs should persist a new Job record with pending status before publishing."""
     fake_id = "01J8ABCDEF000000000000002"
-    with patch(
-        "app.routers.jobs.publish_job_requested",
-        new_callable=AsyncMock,
-        return_value=fake_id,
+    mock_ulid = MagicMock()
+    mock_ulid.return_value = fake_id
+    with (
+        patch("app.routers.jobs.ULID", mock_ulid),
+        patch("app.routers.jobs.publish_job_requested", new_callable=AsyncMock),
     ):
         await api_client.post("/jobs", json={"job_type": "echo"})
 
@@ -79,3 +79,5 @@ async def test_submit_job_persists_pending_status(
     job_arg = mock_db_session.add.call_args[0][0]
     assert job_arg.id == fake_id
     assert job_arg.status == JobStatus.PENDING
+    # commit must be called before publish_job_requested to avoid race conditions
+    mock_db_session.commit.assert_called_once()

@@ -68,9 +68,11 @@ def test_publish_job_completed_raises_on_eventbridge_failure() -> None:
         "Entries": [{"ErrorCode": "err"}],
     }
 
-    with patch("app.events.publisher._get_events_client", return_value=mock_client):
-        with pytest.raises(RuntimeError, match="Failed to publish JobCompleted event"):
-            publish_job_completed(job_id="job-3", result={})
+    with (
+        patch("app.events.publisher._get_events_client", return_value=mock_client),
+        pytest.raises(RuntimeError, match="Failed to publish JobCompleted event"),
+    ):
+        publish_job_completed(job_id="job-3", result={})
 
 
 def test_publish_job_failed_raises_on_eventbridge_failure() -> None:
@@ -81,6 +83,8 @@ def test_publish_job_failed_raises_on_eventbridge_failure() -> None:
         "Entries": [{"ErrorCode": "err"}],
     }
 
-    with patch("app.events.publisher._get_events_client", return_value=mock_client):
-        with pytest.raises(RuntimeError, match="Failed to publish JobFailed event"):
-            publish_job_failed(job_id="job-4", error="boom")
+    with (
+        patch("app.events.publisher._get_events_client", return_value=mock_client),
+        pytest.raises(RuntimeError, match="Failed to publish JobFailed event"),
+    ):
+        publish_job_failed(job_id="job-4", error="boom")

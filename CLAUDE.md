@@ -6,12 +6,12 @@ This file provides guidance to Claude when working in this repository.
 
 ## Project Overview
 
-This project is a **demonstration of event-driven architecture** using Python, the Celery framework, and AWS services (EventBridge and SQS).
+This project is a **demonstration of event-driven architecture** using Python, AWS services (EventBridge and SQS), and PostgreSQL.
 
 It is structured as a **mono-repo** containing two deployable services:
 
 - **`api/`** — An asynchronous REST API built with FastAPI
-- **`worker/`** — A background worker built with Celery for CPU-intensive tasks
+- **`worker/`** — A background job worker that polls SQS directly via boto3
 
 Both services are shipped as Docker images and deployed to **AWS ECS or Kubernetes**. Infrastructure is provisioned with **Terraform**. Local development uses **Docker Compose** with **LocalStack** to emulate AWS services.
 
@@ -31,16 +31,19 @@ project-root/
 │   │   └── config.py
 │   ├── alembic/                # Database migrations
 │   │   └── versions/           # Migration scripts
+│   ├── tests/                  # API unit tests
 │   ├── alembic.ini
 │   ├── Dockerfile
 │   └── pyproject.toml
-├── worker/                     # Celery background worker
+├── worker/                     # SQS-driven background job worker
 │   ├── app/
-│   │   ├── tasks/              # Celery task definitions
+│   │   ├── handlers/           # Job handler functions
 │   │   ├── models/             # SQLAlchemy ORM models
-│   │   ├── events/             # EventBridge event publishers
+│   │   ├── events/             # SQS consumer and EventBridge publishers
 │   │   ├── database.py         # Sync SQLAlchemy engine and update helpers
+│   │   ├── main.py             # Process entry point
 │   │   └── config.py
+│   ├── tests/                  # Worker unit tests
 │   ├── Dockerfile
 │   └── pyproject.toml
 ├── infra/                      # Terraform infrastructure
@@ -50,9 +53,7 @@ project-root/
 ├── docker/
 │   ├── docker-compose.yml      # Local dev environment
 │   └── localstack/             # LocalStack config (emulates SQS, EventBridge)
-├── tests/
-│   ├── unit/
-│   └── integration/            # Run against LocalStack only
+├── integration/                # End-to-end black-box integration tests
 ├── .env.example
 ├── .github/
 │   └── workflows/              # GitHub Actions CI/CD workflows
@@ -89,10 +90,6 @@ SQS_QUEUE_URL=http://localhost:4566/000000000000/demo-queue
 # EventBridge
 EVENTBRIDGE_BUS_NAME=demo-event-bus
 
-# Celery
-CELERY_BROKER_URL=sqs://localhost:4566
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
-
 # Database
 DATABASE_URL=postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo  # pragma: allowlist secret
 
@@ -110,7 +107,7 @@ DEBUG=true
 docker compose -f docker/docker-compose.yml up --build
 ```
 
-This starts the API, worker, LocalStack (SQS + EventBridge emulation), and Redis.
+This starts the API, worker, LocalStack (SQS + EventBridge emulation), and PostgreSQL.
 
 ---
 
@@ -127,6 +124,7 @@ Install dependencies for each service:
 ```bash
 cd api && uv sync
 cd worker && uv sync
+cd integration && uv sync
 ```
 
 Add a new dependency:
@@ -173,7 +171,7 @@ uv run uvicorn app.main:app --reload
 
 ```bash
 cd worker
-uv run celery -A app.worker worker --loglevel=info
+uv run python -m app.main
 ```
 
 ### Pre-commit Hooks
@@ -218,15 +216,20 @@ detect-secrets audit .secrets.baseline
 
 ### Linting & Formatting
 
+Ruff is installed in each service's dev venv, so lint commands must be run from within the service directory.
+
 ```bash
 # Lint
-uv run ruff check .
+cd api && uv run ruff check .
+cd worker && uv run ruff check .
 
 # Format
-uv run ruff format .
+cd api && uv run ruff format .
+cd worker && uv run ruff format .
 
 # Auto-fix
-uv run ruff check --fix .
+cd api && uv run ruff check --fix .
+cd worker && uv run ruff check --fix .
 ```
 
 ### Running Tests
@@ -235,27 +238,34 @@ Each service has its own pytest configuration and must be run from its own direc
 so that `app/` resolves to the correct service package (both services use `app/` as
 their package root — running from the service directory avoids naming conflicts).
 
-Install dev dependencies before running any tests (required for pytest, httpx, etc.):
+Unit tests live alongside each service (`api/tests/`, `worker/tests/`) and require no
+infrastructure. Integration tests live in `integration/` as a separate project with its
+own venv and require the full Docker Compose stack.
+
+Install dev dependencies before running unit tests:
 
 ```bash
 cd api && uv sync --extra dev
 cd worker && uv sync --extra dev
 ```
 
+Install integration test dependencies (once):
+
 ```bash
-# API unit tests
+cd integration && uv sync
+```
+
+```bash
+# API unit tests — no infrastructure required
 cd api && uv run pytest -v
 
-# Worker unit tests
+# Worker unit tests — no infrastructure required
 cd worker && uv run pytest -v
 
-# Integration tests — requires LocalStack and the aws CLI
-# 1. Start LocalStack
-docker compose -f docker/docker-compose.yml up -d localstack
-# 2. Seed resources
-source .env && bash docker/localstack/init/01_create_resources.sh
-# 3. Run tests
-cd api && uv run --env-file ../.env pytest ../tests/integration/ -m integration -v
+# End-to-end integration tests — require the full stack (API, worker, LocalStack, PostgreSQL)
+# LocalStack init scripts run automatically on startup; no manual seeding needed.
+docker compose -f docker/docker-compose.yml up --build -d
+cd integration && uv run pytest -v
 
 # With coverage report
 cd api && uv run pytest --cov=app --cov-report=term-missing
@@ -273,7 +283,6 @@ cd api && uv run pytest --cov=app --cov-report=html
 |---|---|
 | Language | Python 3.14 |
 | API Framework | FastAPI |
-| Task Queue | Celery |
 | Database | PostgreSQL 17 |
 | ORM | SQLAlchemy 2.0 (async in API, sync in worker) |
 | DB Driver (API) | asyncpg |
@@ -319,10 +328,9 @@ cd api && uv run pytest --cov=app --cov-report=html
 - Avoid wildcard imports (`from module import *`).
 - Keep functions short and single-purpose. Prefer composition over inheritance.
 
-### AWS & Celery
+### AWS
 
 - Use **`boto3`** for all AWS interactions.
-- Use **`celery`** for all background task definitions.
 - All AWS clients and resources should be initialised via a shared factory/config to support LocalStack endpoint injection.
 - Never hardcode AWS resource names or ARNs — always read from environment variables or config.
 
@@ -331,10 +339,10 @@ cd api && uv run pytest --cov=app --cov-report=html
 ## Testing Conventions
 
 - Use **`pytest`** for all tests.
-- **Unit tests** (`tests/unit/`): test business logic in isolation, no external dependencies.
-- **Integration tests** (`tests/integration/`): run against **LocalStack** only for local development. Do not mock AWS services — use LocalStack or a real AWS deployment.
+- **Unit tests** (`api/tests/`, `worker/tests/`): test business logic in isolation, no external dependencies. Each service owns its own test suite.
+- **Integration tests** (`integration/`): black-box end-to-end tests that talk to the running stack via HTTP. No imports of internal `app.*` modules — only `httpx` against the API. Require the full Docker Compose stack (API, worker, LocalStack, PostgreSQL).
 - Use **`pytest-cov`** for coverage reports.
-- Test files must mirror the source structure (e.g. `api/app/routers/foo.py` → `tests/unit/api/routers/test_foo.py`).
+- Test files must mirror the source structure (e.g. `api/app/routers/foo.py` → `api/tests/routers/test_foo.py`).
 - Name test functions descriptively: `test_<what>_<expected_outcome>`.
 
 ---
@@ -384,5 +392,5 @@ terraform apply
 - **Pin dependency versions** in `pyproject.toml` to ensure reproducible builds.
 - **Keep Docker images minimal**: use slim or distroless base images, and do not include dev dependencies in production images.
 - **Use health checks** for all Docker services and ECS task definitions.
-- **Idempotency**: design Celery tasks and EventBridge consumers to be idempotent — safe to retry on failure.
+- **Idempotency**: design job handlers and SQS consumers to be idempotent — safe to retry on failure.
 - **Dead-letter queues (DLQ)**: configure DLQs for all SQS queues to capture failed messages.
