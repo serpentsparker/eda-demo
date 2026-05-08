@@ -125,27 +125,27 @@ The system consists of two independently deployed services that communicate excl
 ```
                               JobRequested event
  ┌────────┐   POST /jobs   ┌─────────┐             ┌─────────────────┐
- │ Client │ ─────────────► │ FastAPI │ ──────────► │   EventBridge   │
- │        │ ◄────────────  │  api/   │             │  demo-event-bus │
- └───┬────┘  202 Accepted  └────┬────┘             └────────┬────────┘
-     │                          │                           │ job-requested-rule
-     │ GET /jobs/{id}           │ read/write                ▼
-     │ ◄── job status           ▼                  ┌─────────────────┐     ┌─────────────┐
-     │                     ┌─────────┐             │   SQS Queue     │────►│   SQS DLQ   │
-     │                     │Postgres │             │   demo-queue    │     │ (after ×5)  │
-     │                     │  jobs   │◄──────────  └────────┬────────┘     └─────────────┘
-     │                     └─────────┘  status              │ long-poll
-     │                          ▲        update             ▼
-     │                          └─────────────────  ┌───────────────┐
-     │                                              │    Worker     │
-     └─────────────────────────────────────────────►│   worker/     │
-                                                    └───────┬───────┘
+ │        │ ─────────────► │         │ ──────────► │   EventBridge   │
+ │ Client │ ◄────────────  │ FastAPI │             │  demo-event-bus │
+ │        │  202 Accepted  │  api/   │             └────────┬────────┘
+ │        │                │         │                      │ job-requested-rule
+ │        │ GET /jobs/{id} │         │                      ▼
+ │        │ ─────────────► │         │             ┌─────────────────┐     ┌─────────────┐
+ │        │ ◄─ job status  └────┬────┘             │   SQS Queue     │────►│   SQS DLQ   │
+ └────────┘                     │ read/write       │   demo-queue    │     │ (after ×5)  │
+                                │                  └─────────────────┘     └─────────────┘
+                                │                           ▲
+                                ▼                           │ polls
+                           ┌─────────┐             ┌────────┴────────┐
+                           │Postgres │◄─ status ── │    Worker       │
+                           │  jobs   │   update    │   worker/       │
+                           └─────────┘             └────────┬────────┘
                                                             │ JobCompleted / JobFailed events
                                                             ▼
-                                                    ┌─────────────────┐
-                                                    │   EventBridge   │
-                                                    │  demo-event-bus │
-                                                    └─────────────────┘
+                                                   ┌─────────────────┐
+                                                   │   EventBridge   │
+                                                   │  demo-event-bus │
+                                                   └─────────────────┘
 ```
 
 ### Data flow
