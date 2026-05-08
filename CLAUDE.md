@@ -394,3 +394,8 @@ terraform apply
 - **Use health checks** for all Docker services and ECS task definitions.
 - **Idempotency**: design job handlers and SQS consumers to be idempotent — safe to retry on failure.
 - **Dead-letter queues (DLQ)**: configure DLQs for all SQS queues to capture failed messages.
+
+## Attribution
+
+- **Never** add `Co-Authored-By` or any other AI attribution lines to git commits.
+- **Never** mention Claude, Claude Code, or any AI agent in commit messages, pull request descriptions, code comments, or documentation.
