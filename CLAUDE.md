@@ -46,7 +46,7 @@ project-root/
 │   ├── tests/                  # Worker unit tests
 │   ├── Dockerfile
 │   └── pyproject.toml
-├── infra/                      # Terraform infrastructure
+├── terraform/                  # Terraform infrastructure
 │   ├── modules/
 │   └── environments/
 │       └── dev/
@@ -349,14 +349,14 @@ cd api && uv run pytest --cov=app --cov-report=html
 
 ## Infrastructure (Terraform)
 
-- All infrastructure is defined in `infra/`.
-- Currently one deployment environment: **`dev`** (`infra/environments/dev/`).
+- All infrastructure is defined in `terraform/`.
+- Currently one deployment environment: **`dev`** (`terraform/environments/dev/`).
 - Do not apply Terraform manually in production — use CI/CD pipelines.
 - Always run `terraform plan` before `terraform apply`.
 - Store Terraform state remotely (e.g. S3 + DynamoDB for locking) — never commit `.tfstate` files.
 
 ```bash
-cd infra/environments/dev
+cd terraform/environments/dev
 terraform init
 terraform plan
 terraform apply

@@ -112,7 +112,7 @@ detect-secrets audit .secrets.baseline
 ## Infrastructure
 
 ```bash
-cd infra/environments/dev
+cd terraform/environments/dev
 terraform init
 terraform plan
 terraform apply
