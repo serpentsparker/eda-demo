@@ -72,22 +72,26 @@ Copy the example file and fill in the required values:
 cp .env.example .env
 ```
 
-Key environment variables (see `.env.example` for full reference):
+The stack supports two operating modes controlled entirely by `.env`.
+
+**Option A — LocalStack (no AWS account required)**
 
 ```dotenv
-# SQS
-SQS_QUEUE_URL=http://localhost:4566/000000000000/demo-queue
-
-# EventBridge
+LOCALSTACK_ENDPOINT=http://localstack:4566
+SQS_QUEUE_URL=http://localstack:4566/000000000000/demo-queue
 EVENTBRIDGE_BUS_NAME=demo-event-bus
-
-# Database
 DATABASE_URL=postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo  # pragma: allowlist secret
 ```
 
-> AWS credentials are not configured via environment variables. The Docker Compose stack mounts `~/.aws` from the host and uses the `default` AWS profile.
+**Option B — Real AWS**
 
-> To use LocalStack, set `LOCALSTACK_ENDPOINT=http://localstack:4566` in `.env` (the Docker network hostname). Leave it unset to route traffic to real AWS.
+Leave `LOCALSTACK_ENDPOINT` unset and set `SQS_QUEUE_URL` to the real queue URL (available as a Terraform output). Authentication uses the `default` AWS profile from `~/.aws` — no credentials in env files needed. To use a different profile, set `AWS_PROFILE`.
+
+```dotenv
+SQS_QUEUE_URL=https://sqs.<region>.amazonaws.com/<account_id>/demo-queue
+EVENTBRIDGE_BUS_NAME=demo-event-bus
+DATABASE_URL=postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo  # pragma: allowlist secret
+```
 
 > ⚠️ Never commit `.env` or any file containing secrets to version control.
 
