@@ -353,8 +353,7 @@ cd api && uv run pytest --cov=app --cov-report=html
 - Currently one deployment environment: **`dev`** (`terraform/environments/dev/`).
 - Do not apply Terraform manually in production — use CI/CD pipelines.
 - Always run `terraform plan` before `terraform apply`.
-- Store Terraform state remotely (e.g. S3 + DynamoDB for locking) — never commit `.tfstate` files.
-
+- State is stored locally (`backend "local"`). Never commit `.tfstate` or `.tfplan` files — both are covered by `.gitignore`.
 ```bash
 cd terraform/environments/dev
 terraform init
