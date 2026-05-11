@@ -75,11 +75,6 @@ cp .env.example .env
 Key environment variables (see `.env.example` for full reference):
 
 ```dotenv
-# AWS Configuration
-AWS_ACCESS_KEY_ID=test
-AWS_SECRET_ACCESS_KEY=test
-AWS_DEFAULT_REGION=eu-central-1
-
 # LocalStack
 LOCALSTACK_ENDPOINT=http://localhost:4566
 
@@ -98,6 +93,8 @@ API_HOST=0.0.0.0
 API_PORT=8000
 DEBUG=true
 ```
+
+> AWS credentials are not configured via environment variables. The Docker Compose stack mounts `~/.aws` from the host and uses the `default` AWS profile.
 
 > ⚠️ Never commit `.env` or any file containing secrets to version control.
 

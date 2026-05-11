@@ -42,6 +42,9 @@ services:
       LOCALSTACK_ENDPOINT: http://localstack:4566
       SQS_QUEUE_URL: http://localstack:4566/000000000000/demo-queue
       DATABASE_URL: postgresql+asyncpg://eda_user:eda_pass@postgres:5432/eda_demo  # pragma: allowlist secret
+      AWS_PROFILE: default
+    volumes:
+      - ~/.aws:/root/.aws:ro
     command: >
       sh -c "uv run alembic upgrade head &&
              uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
@@ -66,6 +69,9 @@ services:
       LOCALSTACK_ENDPOINT: http://localstack:4566
       SQS_QUEUE_URL: http://localstack:4566/000000000000/demo-queue
       DATABASE_URL: postgresql+asyncpg://eda_user:eda_pass@postgres:5432/eda_demo  # pragma: allowlist secret
+      AWS_PROFILE: default
+    volumes:
+      - ~/.aws:/root/.aws:ro
     depends_on:
       localstack:
         condition: service_healthy
