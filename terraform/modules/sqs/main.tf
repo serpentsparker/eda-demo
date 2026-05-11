@@ -24,6 +24,8 @@ resource "aws_sqs_queue_policy" "allow_eventbridge" {
   policy    = data.aws_iam_policy_document.eventbridge_send.json
 }
 
+data "aws_caller_identity" "current" {}
+
 data "aws_iam_policy_document" "eventbridge_send" {
   statement {
     effect = "Allow"
@@ -33,5 +35,10 @@ data "aws_iam_policy_document" "eventbridge_send" {
     }
     actions   = ["sqs:SendMessage"]
     resources = [aws_sqs_queue.main.arn]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
   }
 }
