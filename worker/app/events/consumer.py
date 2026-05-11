@@ -17,9 +17,9 @@ _WORKER_THREADS = 4
 
 
 @functools.cache
-def _get_sqs_client(region: str, endpoint_url: str | None) -> botocore.client.BaseClient:
+def _get_sqs_client(endpoint_url: str | None) -> botocore.client.BaseClient:
     """Return a cached boto3 SQS client."""
-    kwargs: dict[str, str] = {"region_name": region}
+    kwargs: dict[str, str] = {}
     if endpoint_url:
         kwargs["endpoint_url"] = endpoint_url
     return boto3.client("sqs", **kwargs)
@@ -83,7 +83,7 @@ def consume() -> None:
 
     Blocks indefinitely; intended to be called from the process entry point.
     """
-    sqs_client = _get_sqs_client(settings.aws_default_region, settings.localstack_endpoint)
+    sqs_client = _get_sqs_client(settings.localstack_endpoint)
     logger.info("SQS consumer started, polling: %s", settings.sqs_queue_url)
 
     with ThreadPoolExecutor(max_workers=_WORKER_THREADS, thread_name_prefix="job-worker") as pool:

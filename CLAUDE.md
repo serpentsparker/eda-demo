@@ -46,7 +46,7 @@ project-root/
 │   ├── tests/                  # Worker unit tests
 │   ├── Dockerfile
 │   └── pyproject.toml
-├── infra/                      # Terraform infrastructure
+├── terraform/                  # Terraform infrastructure
 │   ├── modules/
 │   └── environments/
 │       └── dev/
@@ -72,31 +72,25 @@ Copy the example file and fill in the required values:
 cp .env.example .env
 ```
 
-Key environment variables (see `.env.example` for full reference):
+The stack supports two operating modes controlled entirely by `.env`.
+
+**Option A — LocalStack (no AWS account required)**
 
 ```dotenv
-# AWS Configuration
-AWS_ACCESS_KEY_ID=test
-AWS_SECRET_ACCESS_KEY=test
-AWS_DEFAULT_REGION=eu-central-1
-
-# LocalStack
-LOCALSTACK_ENDPOINT=http://localhost:4566
-
-# SQS
-SQS_QUEUE_NAME=demo-queue
-SQS_QUEUE_URL=http://localhost:4566/000000000000/demo-queue
-
-# EventBridge
+LOCALSTACK_ENDPOINT=http://localstack:4566
+SQS_QUEUE_URL=http://localstack:4566/000000000000/demo-queue
 EVENTBRIDGE_BUS_NAME=demo-event-bus
-
-# Database
 DATABASE_URL=postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo  # pragma: allowlist secret
+```
 
-# App
-API_HOST=0.0.0.0
-API_PORT=8000
-DEBUG=true
+**Option B — Real AWS**
+
+Leave `LOCALSTACK_ENDPOINT` unset and set `SQS_QUEUE_URL` to the real queue URL (available as a Terraform output). Authentication uses the `default` AWS profile from `~/.aws` — no credentials in env files needed. To use a different profile, set `AWS_PROFILE`.
+
+```dotenv
+SQS_QUEUE_URL=https://sqs.<region>.amazonaws.com/<account_id>/demo-queue
+EVENTBRIDGE_BUS_NAME=demo-event-bus
+DATABASE_URL=postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo  # pragma: allowlist secret
 ```
 
 > ⚠️ Never commit `.env` or any file containing secrets to version control.
@@ -349,14 +343,13 @@ cd api && uv run pytest --cov=app --cov-report=html
 
 ## Infrastructure (Terraform)
 
-- All infrastructure is defined in `infra/`.
-- Currently one deployment environment: **`dev`** (`infra/environments/dev/`).
+- All infrastructure is defined in `terraform/`.
+- Currently one deployment environment: **`dev`** (`terraform/environments/dev/`).
 - Do not apply Terraform manually in production — use CI/CD pipelines.
 - Always run `terraform plan` before `terraform apply`.
-- Store Terraform state remotely (e.g. S3 + DynamoDB for locking) — never commit `.tfstate` files.
-
+- State is stored locally (`backend "local"`). Never commit `.tfstate` or `.tfplan` files — both are covered by `.gitignore`.
 ```bash
-cd infra/environments/dev
+cd terraform/environments/dev
 terraform init
 terraform plan
 terraform apply

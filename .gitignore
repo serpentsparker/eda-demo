@@ -45,10 +45,11 @@ htmlcov/
 .env.*
 !.env.example
 
-# Terraform state — NEVER commit these
+# Terraform state and plans — NEVER commit these
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
+*.tfplan
 .terraform/
 .terraform.lock.hcl
 

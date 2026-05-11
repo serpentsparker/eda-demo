@@ -25,7 +25,22 @@ Both services are shipped as Docker images and deployed to AWS ECS or Kubernetes
 cp .env.example .env
 ```
 
-### 2. Start all services
+### 2. Choose an operating mode
+
+**Option A — LocalStack (no AWS account required)**
+
+Set the following in `.env` to route all AWS traffic to the local emulator:
+
+```dotenv
+LOCALSTACK_ENDPOINT=http://localstack:4566
+SQS_QUEUE_URL=http://localstack:4566/000000000000/demo-queue
+```
+
+**Option B — Real AWS**
+
+Leave `LOCALSTACK_ENDPOINT` unset and point `SQS_QUEUE_URL` at the real queue URL (available as a Terraform output after `terraform apply`). The stack mounts `~/.aws` from the host and authenticates via the `default` AWS profile — no credentials in env files needed. To use a different profile, set `AWS_PROFILE` in `.env`.
+
+### 3. Start all services
 
 ```bash
 docker compose -f docker/docker-compose.yml up --build
@@ -37,7 +52,7 @@ This starts:
 - LocalStack (SQS + EventBridge) on `http://localhost:4566`
 - PostgreSQL on `localhost:5432`
 
-### 3. Explore the API
+### 4. Explore the API
 
 ```
 GET  /health
@@ -111,11 +126,20 @@ detect-secrets audit .secrets.baseline
 
 ## Infrastructure
 
+AWS resources (SQS queue with DLQ, EventBridge bus and routing rule) are provisioned with Terraform. All commands must be run from within the environment directory.
+
 ```bash
-cd infra/environments/dev
+cd terraform/environments/dev
 terraform init
 terraform plan
 terraform apply
+```
+
+The queue URL and EventBridge bus ARN are available as outputs after apply:
+
+```bash
+terraform output sqs_queue_url
+terraform output eventbridge_bus_arn
 ```
 
 ## Architecture
