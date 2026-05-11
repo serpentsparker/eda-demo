@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 @functools.cache
-def _get_events_client(region: str, endpoint_url: str | None) -> botocore.client.BaseClient:
+def _get_events_client(endpoint_url: str | None) -> botocore.client.BaseClient:
     """Return a cached boto3 EventBridge client."""
-    kwargs: dict[str, str] = {"region_name": region}
+    kwargs: dict[str, str] = {}
     if endpoint_url:
         kwargs["endpoint_url"] = endpoint_url
     return boto3.client("events", **kwargs)
@@ -61,7 +61,7 @@ def _put_event(detail_type: str, detail: dict[str, Any]) -> None:
     Raises:
         RuntimeError: If EventBridge rejects the entry.
     """
-    client = _get_events_client(settings.aws_default_region, settings.localstack_endpoint)
+    client = _get_events_client(settings.localstack_endpoint)
     response = client.put_events(
         Entries=[
             {

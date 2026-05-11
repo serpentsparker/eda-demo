@@ -75,11 +75,7 @@ cp .env.example .env
 Key environment variables (see `.env.example` for full reference):
 
 ```dotenv
-# LocalStack
-LOCALSTACK_ENDPOINT=http://localhost:4566
-
 # SQS
-SQS_QUEUE_NAME=demo-queue
 SQS_QUEUE_URL=http://localhost:4566/000000000000/demo-queue
 
 # EventBridge
@@ -87,13 +83,11 @@ EVENTBRIDGE_BUS_NAME=demo-event-bus
 
 # Database
 DATABASE_URL=postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo  # pragma: allowlist secret
-
-# App
-API_HOST=0.0.0.0
-API_PORT=8000
 ```
 
 > AWS credentials are not configured via environment variables. The Docker Compose stack mounts `~/.aws` from the host and uses the `default` AWS profile.
+
+> To use LocalStack, set `LOCALSTACK_ENDPOINT=http://localstack:4566` in `.env` (the Docker network hostname). Leave it unset to route traffic to real AWS.
 
 > ⚠️ Never commit `.env` or any file containing secrets to version control.
 

@@ -9,13 +9,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # AWS
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    aws_default_region: str = "eu-central-1"
     localstack_endpoint: str | None = None
 
     # SQS
-    sqs_queue_name: str = "demo-queue"
     sqs_queue_url: str = "http://localhost:4566/000000000000/demo-queue"
 
     # Database
