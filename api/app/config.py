@@ -29,7 +29,6 @@ class Settings(BaseSettings):
     # App
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    debug: bool = False
 
 
 settings = Settings()

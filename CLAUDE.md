@@ -91,7 +91,6 @@ DATABASE_URL=postgresql+asyncpg://eda_user:eda_pass@localhost:5432/eda_demo  # p
 # App
 API_HOST=0.0.0.0
 API_PORT=8000
-DEBUG=true
 ```
 
 > AWS credentials are not configured via environment variables. The Docker Compose stack mounts `~/.aws` from the host and uses the `default` AWS profile.
